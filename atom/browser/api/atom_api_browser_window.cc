@@ -130,7 +130,7 @@ void BrowserWindow::RenderViewCreated(
       render_view_host->GetProcess()->GetID(),
       render_view_host->GetRoutingID());
   if (impl)
-    impl->SetBackgroundOpaque(false);
+    impl->owner_delegate()->SetBackgroundOpaque(false);
 }
 
 void BrowserWindow::DidFirstVisuallyNonEmptyPaint() {
@@ -342,7 +342,8 @@ void BrowserWindow::SetVibrancy(v8::Isolate* isolate,
         render_view_host->GetProcess()->GetID(),
         render_view_host->GetRoutingID());
     if (impl)
-      impl->SetBackgroundOpaque(type.empty() ? !window_->transparent() : false);
+      impl->owner_delegate()->SetBackgroundOpaque(
+          type.empty() ? !window_->transparent() : false);
   }
 
   TopLevelWindow::SetVibrancy(isolate, value);
