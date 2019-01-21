@@ -180,7 +180,8 @@ v8::Local<v8::Value> V8ValueConverter::ToV8ValueImpl(
     case base::Value::Type::STRING: {
       std::string val = value->GetString();
       return v8::String::NewFromUtf8(isolate, val.c_str(),
-                                     v8::String::kNormalString, val.length());
+                                     v8::NewStringType::kNormal, val.length())
+          .ToLocalChecked();
     }
 
     case base::Value::Type::LIST:
@@ -329,7 +330,9 @@ base::Value* V8ValueConverter::FromV8ValueImpl(FromV8ValueState* state,
   if (val->IsDate()) {
     v8::Date* date = v8::Date::Cast(*val);
     v8::Local<v8::Value> toISOString =
-        date->Get(v8::String::NewFromUtf8(isolate, "toISOString"));
+        date->Get(v8::String::NewFromUtf8(isolate, "toISOString",
+                                          v8::NewStringType::kNormal)
+                      .ToLocalChecked());
     if (toISOString->IsFunction()) {
       v8::Local<v8::Value> result = toISOString.As<v8::Function>()
                                         ->Call(context, val, 0, nullptr)
@@ -395,13 +398,16 @@ base::Value* V8ValueConverter::FromV8Array(v8::Local<v8::Array> val,
   // Only fields with integer keys are carried over to the ListValue.
   for (uint32_t i = 0; i < val->Length(); ++i) {
     v8::TryCatch try_catch(isolate);
-    v8::Local<v8::Value> child_v8 = val->Get(i);
-    if (try_catch.HasCaught()) {
+    v8::Local<v8::Value> child_v8;
+    v8::MaybeLocal<v8::Value> maybe_child =
+        val->Get(isolate->GetCurrentContext(), i);
+    if (try_catch.HasCaught() || !maybe_child.ToLocal(&child_v8)) {
       LOG(ERROR) << "Getter for index " << i << " threw an exception.";
       child_v8 = v8::Null(isolate);
     }
 
-    if (!val->HasRealIndexedProperty(i))
+    if (!val->HasRealIndexedProperty(isolate->GetCurrentContext(), i)
+             .FromMaybe(false))
       continue;
 
     base::Value* child = FromV8ValueImpl(state, child_v8, isolate);
@@ -438,10 +444,15 @@ base::Value* V8ValueConverter::FromV8Object(v8::Local<v8::Object> val,
     scope.reset(new v8::Context::Scope(val->CreationContext()));
 
   auto result = std::make_unique<base::DictionaryValue>();
-  v8::Local<v8::Array> property_names(val->GetOwnPropertyNames());
+  v8::Local<v8::Array> property_names;
+  if (!val->GetOwnPropertyNames(isolate->GetCurrentContext())
+           .ToLocal(&property_names)) {
+    return std::move(result);
+  }
 
   for (uint32_t i = 0; i < property_names->Length(); ++i) {
-    v8::Local<v8::Value> key(property_names->Get(i));
+    v8::Local<v8::Value> key =
+        property_names->Get(isolate->GetCurrentContext(), i).ToLocalChecked();
 
     // Extend this test to cover more types as necessary and if sensible.
     if (!key->IsString() && !key->IsNumber()) {
@@ -455,9 +466,10 @@ base::Value* V8ValueConverter::FromV8Object(v8::Local<v8::Object> val,
         isolate, key->ToString(isolate->GetCurrentContext()).ToLocalChecked());
 
     v8::TryCatch try_catch(isolate);
-    v8::Local<v8::Value> child_v8 = val->Get(key);
-
-    if (try_catch.HasCaught()) {
+    v8::Local<v8::Value> child_v8;
+    v8::MaybeLocal<v8::Value> maybe_child =
+        val->Get(isolate->GetCurrentContext(), key);
+    if (try_catch.HasCaught() || !maybe_child.ToLocal(&child_v8)) {
       LOG(ERROR) << "Getter for property " << *name_utf8
                  << " threw an exception.";
       child_v8 = v8::Null(isolate);
@@ -497,7 +509,7 @@ base::Value* V8ValueConverter::FromV8Object(v8::Local<v8::Object> val,
                                     std::move(child));
   }
 
-  return result.release();
+  return std::move(result);
 }
 
 }  // namespace atom
