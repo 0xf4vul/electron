@@ -20,6 +20,7 @@
 #include "atom/browser/atom_quota_permission_context.h"
 #include "atom/browser/atom_resource_dispatcher_host_delegate.h"
 #include "atom/browser/atom_speech_recognition_manager_delegate.h"
+#include "atom/browser/browser.h"
 #include "atom/browser/child_web_contents_tracker.h"
 #include "atom/browser/font_defaults.h"
 #include "atom/browser/io_thread.h"
@@ -32,6 +33,7 @@
 #include "atom/browser/web_contents_permission_helper.h"
 #include "atom/browser/web_contents_preferences.h"
 #include "atom/browser/window_list.h"
+#include "atom/common/atom_version.h"
 #include "atom/common/options_switches.h"
 #include "atom/common/platform_util.h"
 #include "base/command_line.h"
@@ -44,9 +46,11 @@
 #include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/post_task.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/common/chrome_version.h"
 #include "components/net_log/chrome_net_log.h"
 #include "content/public/browser/browser_ppapi_host.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -61,6 +65,7 @@
 #include "content/public/common/content_switches.h"
 #include "content/public/common/service_names.mojom.h"
 #include "content/public/common/url_constants.h"
+#include "content/public/common/user_agent.h"
 #include "content/public/common/web_preferences.h"
 #include "electron/buildflags/buildflags.h"
 #include "electron/grit/electron_resources.h"
@@ -140,6 +145,14 @@ void SetApplicationLocaleOnIOThread(const std::string& locale) {
   g_io_thread_application_locale.Get() = locale;
 }
 
+std::string RemoveWhitespace(const std::string& str) {
+  std::string trimmed;
+  if (base::RemoveChars(str, " ", &trimmed))
+    return trimmed;
+  else
+    return str;
+}
+
 }  // namespace
 
 // static
@@ -165,6 +178,22 @@ void AtomBrowserClient::SetApplicationLocale(const std::string& locale) {
     g_io_thread_application_locale.Get() = locale;
   }
   *g_application_locale = locale;
+}
+
+std::string GetUserAgent() {
+  // Construct user agent string.
+  Browser* browser = Browser::Get();
+  std::string name = RemoveWhitespace(browser->GetName());
+  std::string user_agent;
+  if (name == ATOM_PRODUCT_NAME) {
+    user_agent = "Chrome/" CHROME_VERSION_STRING " " ATOM_PRODUCT_NAME
+                 "/" ATOM_VERSION_STRING;
+  } else {
+    user_agent = base::StringPrintf(
+        "%s/%s Chrome/%s " ATOM_PRODUCT_NAME "/" ATOM_VERSION_STRING,
+        name.c_str(), browser->GetVersion().c_str(), CHROME_VERSION_STRING);
+  }
+  return content::BuildUserAgentFromProduct(user_agent);
 }
 
 AtomBrowserClient::AtomBrowserClient() {
@@ -883,6 +912,14 @@ bool AtomBrowserClient::ShouldBypassCORB(int render_process_id) const {
   base::AutoLock auto_lock(process_preferences_lock_);
   auto it = process_preferences_.find(render_process_id);
   return it != process_preferences_.end() && !it->second.web_security;
+}
+
+std::string AtomBrowserClient::GetProduct() const {
+  return "Chrome/" CHROME_VERSION_STRING;
+}
+
+std::string AtomBrowserClient::GetUserAgent() const {
+  return ::GetUserAgent();
 }
 
 std::string AtomBrowserClient::GetApplicationLocale() {
