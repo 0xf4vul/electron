@@ -75,12 +75,10 @@ class WebFrame : public mate::Wrappable<WebFrame> {
       mate::Arguments* args);
 
   // Isolated world related methods
-  void SetIsolatedWorldSecurityOrigin(int world_id,
-                                      const std::string& origin_url);
-  void SetIsolatedWorldContentSecurityPolicy(
-      int world_id,
-      const std::string& security_policy);
-  void SetIsolatedWorldHumanReadableName(int world_id, const std::string& name);
+  void SetIsolatedWorldInfo(int world_id,
+                            const std::string& origin_url,
+                            const std::string& security_policy,
+                            const std::string& name);
 
   // Resource related methods
   blink::WebCache::ResourceTypeStats GetResourceUsage(v8::Isolate* isolate);

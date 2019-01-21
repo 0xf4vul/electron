@@ -19,6 +19,7 @@
 #include "native_mate/dictionary.h"
 #include "native_mate/object_template_builder.h"
 #include "third_party/blink/public/platform/web_cache.h"
+#include "third_party/blink/public/platform/web_isolated_world_info.h"
 #include "third_party/blink/public/web/web_custom_element.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_element.h"
@@ -351,24 +352,16 @@ void WebFrame::ExecuteJavaScriptInIsolatedWorld(
       scriptExecutionType, callback.release());
 }
 
-void WebFrame::SetIsolatedWorldSecurityOrigin(int world_id,
-                                              const std::string& origin_url) {
-  web_frame_->SetIsolatedWorldSecurityOrigin(
-      world_id, blink::WebSecurityOrigin::CreateFromString(
-                    blink::WebString::FromUTF8(origin_url)));
-}
-
-void WebFrame::SetIsolatedWorldContentSecurityPolicy(
-    int world_id,
-    const std::string& security_policy) {
-  web_frame_->SetIsolatedWorldContentSecurityPolicy(
-      world_id, blink::WebString::FromUTF8(security_policy));
-}
-
-void WebFrame::SetIsolatedWorldHumanReadableName(int world_id,
-                                                 const std::string& name) {
-  web_frame_->SetIsolatedWorldHumanReadableName(
-      world_id, blink::WebString::FromUTF8(name));
+void WebFrame::SetIsolatedWorldInfo(int world_id,
+                                    const std::string& origin_url,
+                                    const std::string& security_policy,
+                                    const std::string& name) {
+  blink::WebIsolatedWorldInfo info;
+  info.security_origin = blink::WebSecurityOrigin::CreateFromString(
+      blink::WebString::FromUTF8(origin_url));
+  info.content_security_policy = blink::WebString::FromUTF8(security_policy);
+  info.human_readable_name = blink::WebString::FromUTF8(name);
+  web_frame_->SetIsolatedWorldInfo(world_id, info);
 }
 
 // static
@@ -509,12 +502,7 @@ void WebFrame::BuildPrototype(v8::Isolate* isolate,
       .SetMethod("executeJavaScript", &WebFrame::ExecuteJavaScript)
       .SetMethod("executeJavaScriptInIsolatedWorld",
                  &WebFrame::ExecuteJavaScriptInIsolatedWorld)
-      .SetMethod("setIsolatedWorldSecurityOrigin",
-                 &WebFrame::SetIsolatedWorldSecurityOrigin)
-      .SetMethod("setIsolatedWorldContentSecurityPolicy",
-                 &WebFrame::SetIsolatedWorldContentSecurityPolicy)
-      .SetMethod("setIsolatedWorldHumanReadableName",
-                 &WebFrame::SetIsolatedWorldHumanReadableName)
+      .SetMethod("setIsolatedWorldInfo", &WebFrame::SetIsolatedWorldInfo)
       .SetMethod("getResourceUsage", &WebFrame::GetResourceUsage)
       .SetMethod("clearCache", &WebFrame::ClearCache)
       .SetMethod("getFrameForSelector", &WebFrame::GetFrameForSelector)
